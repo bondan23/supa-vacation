@@ -6,9 +6,11 @@ import { toast } from 'react-hot-toast';
 import { Formik, Form } from 'formik';
 import Input from '@/components/Input';
 import ImageUpload from '@/components/ImageUpload';
+import axios from 'axios';
 
 const ListingSchema = Yup.object().shape({
   title: Yup.string().trim().required(),
+  slug: Yup.string().trim().required(),
   description: Yup.string().trim().required(),
   price: Yup.number().positive().integer().min(1).required(),
   guests: Yup.number().positive().integer().min(1).required(),
@@ -28,8 +30,31 @@ const ListingForm = ({
   const [imageUrl, setImageUrl] = useState(initialValues?.image ?? '');
 
   const upload = async image => {
-    // TODO: Upload image to remote storage
+    if (!image) return;
+
+    let toastId;
+    try {
+      setDisabled(true);
+      toastId = toast.loading('Uploading...');
+      const { data } = await axios.post('/api/image-upload', { image });
+      setImageUrl(data?.url);
+      toast.success('Successfully uploaded', { id: toastId });
+    } catch (e) {
+      toast.error('Unable to upload', { id: toastId });
+      setImageUrl('');
+    } finally {
+      setDisabled(false);
+    }
   };
+
+  const generateSlug = (text) => {
+      return text.toString().toLowerCase()
+          .replace(/^-+/, '')
+          .replace(/-+$/, '')
+          .replace(/\s+/g, '-')
+          .replace(/\-\-+/g, '-')
+          .replace(/[^\w\-]+/g, '');
+  }
 
   const handleOnSubmit = async (values = null) => {
     let toastId;
@@ -54,6 +79,7 @@ const ListingForm = ({
   const { image, ...initialFormValues } = initialValues ?? {
     image: '',
     title: '',
+    slug: '',
     description: '',
     price: 0,
     guests: 1,
@@ -76,14 +102,30 @@ const ListingForm = ({
         validateOnBlur={false}
         onSubmit={handleOnSubmit}
       >
-        {({ isSubmitting, isValid }) => (
+        {({ isSubmitting, isValid, values, setFieldValue }) => (
           <Form className="space-y-8">
             <div className="space-y-6">
+              <Input
+                name="slug"
+                type="text"
+                label="Slug"
+                placeholder="Generated Slug Base On Your Title"
+                value={values.slug}
+                disabled={true}
+              />
+
               <Input
                 name="title"
                 type="text"
                 label="Title"
                 placeholder="Entire rental unit - Amsterdam"
+                value={values.title}
+                onChange={(e)=>{
+                  const { value } = e.target;
+
+                  setFieldValue('title', value)
+                  setFieldValue('slug', generateSlug(value))
+                }}
                 disabled={disabled}
               />
 
